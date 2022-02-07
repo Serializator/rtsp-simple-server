@@ -334,6 +334,8 @@ func (m *hlsMuxer) runInner(innerCtx context.Context, innerReady chan struct{}) 
 	writerDone := make(chan error)
 	go func() {
 		writerDone <- func() error {
+			var lastVideoPTS *time.Duration
+
 			for {
 				data, ok := m.ringBuffer.Pull()
 				if !ok {
@@ -357,6 +359,7 @@ func (m *hlsMuxer) runInner(innerCtx context.Context, innerReady chan struct{}) 
 						}
 						continue
 					}
+					lastVideoPTS = &pts
 
 					err = m.muxer.WriteH264(pts, nalus)
 					if err != nil {
@@ -377,6 +380,15 @@ func (m *hlsMuxer) runInner(innerCtx context.Context, innerReady chan struct{}) 
 							m.log(logger.Warn, "unable to decode audio track: %v", err)
 						}
 						continue
+					}
+
+					if lastVideoPTS != nil {
+						diff := pts - *lastVideoPTS
+						if diff < -(60*60*time.Second) || diff > (60*60*time.Second) {
+							m.log(logger.Warn, "Audio PTS difference is too big: %v %v", pts, *lastVideoPTS)
+							m.ringBuffer.Close()
+							return fmt.Errorf("")
+						}
 					}
 
 					err = m.muxer.WriteAAC(pts, aus)
