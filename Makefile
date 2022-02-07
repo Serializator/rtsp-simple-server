@@ -79,13 +79,6 @@ endif
 
 test-internal:
 	go test -v $(TEST_INTERNAL_OPTS) \
-	./internal/conf \
-	./internal/confwatcher \
-	./internal/externalcmd \
-	./internal/hls \
-	./internal/logger \
-	./internal/rlimit \
-	./internal/rtcpsenderset \
 	./internal/rtmp
 
 test-core:
@@ -93,7 +86,7 @@ test-core:
 	docker build -q testimages/$(IMG) -t rtsp-simple-server-test-$(IMG)$(NL))
 	go test -v $(TEST_CORE_OPTS) ./internal/core
 
-test-nodocker: test-internal test-core
+test-nodocker: test-internal
 
 lint:
 	docker run --rm -v $(PWD):/app -w /app \
