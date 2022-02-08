@@ -11,6 +11,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/aler9/rtsp-simple-server/internal/logger"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func metric(key string, value int64) string {
@@ -64,10 +66,9 @@ func newMetrics(
 		ln:     ln,
 	}
 
-	router := gin.New()
-	router.GET("/metrics", m.onMetrics)
+	handler := promhttp.Handler()
 
-	m.server = &http.Server{Handler: router}
+	m.server = &http.Server{Handler: handler}
 
 	m.log(logger.Info, "listener opened on "+address)
 
