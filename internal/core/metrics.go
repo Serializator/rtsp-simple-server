@@ -2,22 +2,18 @@ package core
 
 import (
 	"context"
-	"io"
+	"github.com/prometheus/client_golang/prometheus"
 	"net"
 	"net/http"
-	"strconv"
 	"sync"
-
-	"github.com/gin-gonic/gin"
 
 	"github.com/aler9/rtsp-simple-server/internal/logger"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func metric(key string, value int64) string {
-	return key + " " + strconv.FormatInt(value, 10) + "\n"
-}
+// TODO: use a proper namespace which prefixes the metrics
+var namespace = ""
 
 type metricsPathManager interface {
 	onAPIPathsList(req pathAPIPathsListReq) pathAPIPathsListRes
@@ -66,9 +62,14 @@ func newMetrics(
 		ln:     ln,
 	}
 
-	handler := promhttp.Handler()
+	prometheus.MustRegister(
+		newPathCollector(m),
+		newRTSPCollector(m),
+		newRTMPCollector(m),
+		newHLSCollector(m),
+	)
 
-	m.server = &http.Server{Handler: handler}
+	m.server = &http.Server{Handler: promhttp.Handler()}
 
 	m.log(logger.Info, "listener opened on "+address)
 
@@ -91,114 +92,6 @@ func (m *metrics) run() {
 	if err != http.ErrServerClosed {
 		panic(err)
 	}
-}
-
-func (m *metrics) onMetrics(ctx *gin.Context) {
-	out := ""
-
-	res := m.pathManager.onAPIPathsList(pathAPIPathsListReq{})
-	if res.err == nil {
-		for name, p := range res.data.Items {
-			if p.SourceReady {
-				out += metric("paths{name=\""+name+"\",state=\"ready\"}", 1)
-			} else {
-				out += metric("paths{name=\""+name+"\",state=\"notReady\"}", 1)
-			}
-		}
-	}
-
-	if !interfaceIsEmpty(m.rtspServer) {
-		res := m.rtspServer.onAPISessionsList(rtspServerAPISessionsListReq{})
-		if res.err == nil {
-			idleCount := int64(0)
-			readCount := int64(0)
-			publishCount := int64(0)
-
-			for _, i := range res.data.Items {
-				switch i.State {
-				case "idle":
-					idleCount++
-				case "read":
-					readCount++
-				case "publish":
-					publishCount++
-				}
-			}
-
-			out += metric("rtsp_sessions{state=\"idle\"}",
-				idleCount)
-			out += metric("rtsp_sessions{state=\"read\"}",
-				readCount)
-			out += metric("rtsp_sessions{state=\"publish\"}",
-				publishCount)
-		}
-	}
-
-	if !interfaceIsEmpty(m.rtspsServer) {
-		res := m.rtspsServer.onAPISessionsList(rtspServerAPISessionsListReq{})
-		if res.err == nil {
-			idleCount := int64(0)
-			readCount := int64(0)
-			publishCount := int64(0)
-
-			for _, i := range res.data.Items {
-				switch i.State {
-				case "idle":
-					idleCount++
-				case "read":
-					readCount++
-				case "publish":
-					publishCount++
-				}
-			}
-
-			out += metric("rtsps_sessions{state=\"idle\"}",
-				idleCount)
-			out += metric("rtsps_sessions{state=\"read\"}",
-				readCount)
-			out += metric("rtsps_sessions{state=\"publish\"}",
-				publishCount)
-		}
-	}
-
-	if !interfaceIsEmpty(m.rtmpServer) {
-		res := m.rtmpServer.onAPIConnsList(rtmpServerAPIConnsListReq{})
-		if res.err == nil {
-			idleCount := int64(0)
-			readCount := int64(0)
-			publishCount := int64(0)
-
-			for _, i := range res.data.Items {
-				switch i.State {
-				case "idle":
-					idleCount++
-				case "read":
-					readCount++
-				case "publish":
-					publishCount++
-				}
-			}
-
-			out += metric("rtmp_conns{state=\"idle\"}",
-				idleCount)
-			out += metric("rtmp_conns{state=\"read\"}",
-				readCount)
-			out += metric("rtmp_conns{state=\"publish\"}",
-				publishCount)
-		}
-	}
-
-	if !interfaceIsEmpty(m.hlsServer) {
-		res := m.hlsServer.onAPIHLSMuxersList(hlsServerAPIMuxersListReq{})
-		if res.err == nil {
-			for name := range res.data.Items {
-				out += metric("hls_muxers{name=\""+name+"\"}", 1)
-			}
-		}
-	}
-
-	ctx.Writer.WriteHeader(http.StatusOK)
-	io.WriteString(ctx.Writer, out)
 }
 
 // onPathManagerSet is called by pathManager.
