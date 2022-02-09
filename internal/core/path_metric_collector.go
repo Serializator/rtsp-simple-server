@@ -8,7 +8,7 @@ var (
 	pathSubsystem = "" // TODO: use a proper subsystem (such as "path")
 
 	pathPathsDescName           = "paths" // TODO: should be "path", resulting in a "{namespace}_{subsystem}_total" ("rtspss_path_paths")
-	pathPathsDescHelp           = ""      // TODO: add a HELP message to the metric description
+	pathPathsDescHelp           = "The name and state of path"
 	pathPathsDescVariableLabels = []string{"name", "state"}
 )
 
